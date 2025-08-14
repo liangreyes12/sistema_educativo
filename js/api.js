@@ -1,127 +1,87 @@
-// API Service Class
-class ApiService {
-    constructor() {
-        this.baseUrl = API_CONFIG.BASE_URL;
-        this.apiKey = API_CONFIG.API_KEY;
-        this.authToken = API_CONFIG.AUTH_TOKEN;
-        this.timeout = API_CONFIG.TIMEOUT;
-    }
-
-    // Obtener encabezados predeterminados con autenticación
-    getHeaders() {
-        return {
-            ...API_CONFIG.DEFAULT_HEADERS,
-            'apikey': this.apiKey,
-            'Authorization': `Bearer ${this.authToken}`
-        };
-    }
-
-    // Método de solicitud HTTP genérico
-    async request(endpoint, options = {}) {
-        const url = `${this.baseUrl}${endpoint}`;
-        const config = {
-            headers: this.getHeaders(),
-            ...options
-        };
-
-        // Agregar tiempo de espera
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-        config.signal = controller.signal;
-
-        try {
-            showLoading();
-            
-            if (ENV_CONFIG.DEBUG) {
-                console.log(`API Request: ${options.method || 'GET'} ${url}`, config);
-            }
-
-            const response = await fetch(url, config);
-            clearTimeout(timeoutId);
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            if (ENV_CONFIG.DEBUG) {
-                console.log('API Response:', data);
-            }
-
-            return data;
-        } catch (error) {
-            clearTimeout(timeoutId);
-            
-            if (error.name === 'AbortError') {
-                throw new Error('Request timeout');
-            }
-            
-            console.error('API Error:', error);
-            throw error;
-        } finally {
-            hideLoading();
-        }
-    }
-
-    // GET request
-    async get(endpoint) {
-        return this.request(endpoint, { method: 'GET' });
-    }
-
-    // POST request
-    async post(endpoint, data) {
-        return this.request(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
-
-    // PUT request
-    async put(endpoint, data) {
-        return this.request(endpoint, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        });
-    }
-
-    // DELETE request
-    async delete(endpoint) {
-         return this.request(endpoint, { method: 'DELETE' });
-    }
+// Helper para construir headers
+function getHeaders() {
+    return {
+        ...API_CONFIG.DEFAULT_HEADERS,
+        apikey: API_CONFIG.API_KEY,
+        Authorization: `Bearer ${API_CONFIG.AUTH_TOKEN}`
+    };
 }
 
-
-// Cursos API Service
-class CursosService extends ApiService {
-    constructor() {
-        super();
-        this.endpoint = API_CONFIG.ENDPOINTS.CURSOS;
+// Servicio base
+class BaseService {
+    constructor(endpoint) {
+        this.endpoint = API_CONFIG.BASE_URL + endpoint;
     }
 
     async getAll() {
-       
+        const res = await fetch(this.endpoint, {
+            headers: getHeaders(),
+            method: 'GET'
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const text = await res.text();
+        return text ? JSON.parse(text) : [];
     }
 
-    async getById(id) {
-            
+    async create(data) {
+            const res = await fetch(this.endpoint, {
+                headers: getHeaders(),
+                method: 'POST',
+                body: JSON.stringify(data)
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const text = await res.text();
+            return text ? JSON.parse(text) : {};
     }
 
-    async create(curso) {
-       
-    }
+    async update(id, data) {
+        // Detectar el endpoint y usar el nombre de columna correcto
+        let idField = '';
+        if (this.endpoint.includes('profesores')) idField = 'id_profesor';
+        else if (this.endpoint.includes('estudiantes')) idField = 'id_estudiante';
+        else if (this.endpoint.includes('cursos')) idField = 'id_curso';
+        else if (this.endpoint.includes('inscripciones')) idField = 'id_inscripcion';
+        else idField = 'id';
 
-    async update(id, curso) {
-       
+        const url = `${this.endpoint}?${idField}=eq.${id}`;
+        const res = await fetch(url, {
+            headers: getHeaders(),
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const text = await res.text();
+        return text ? JSON.parse(text) : {};
     }
 
     async delete(id) {
-       
-    }
+        // Detectar el endpoint y usar el nombre de columna correcto
+        let idField = '';
+        if (this.endpoint.includes('profesores')) idField = 'id_profesor';
+        else if (this.endpoint.includes('estudiantes')) idField = 'id_estudiante';
+        else if (this.endpoint.includes('cursos')) idField = 'id_curso';
+        else if (this.endpoint.includes('inscripciones')) idField = 'id_inscripcion';
+        else idField = 'id';
 
+        const url = `${this.endpoint}?${idField}=eq.${id}`;
+        const res = await fetch(url, {
+            headers: getHeaders(),
+            method: 'DELETE'
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const text = await res.text();
+        return text ? JSON.parse(text) : {};
+    }
 }
 
+// Instancias para cada entidad
+const profesoresService = new BaseService(API_CONFIG.ENDPOINTS.PROFESORES);
+const estudiantesService = new BaseService(API_CONFIG.ENDPOINTS.ESTUDIANTES);
+const cursosService = new BaseService(API_CONFIG.ENDPOINTS.CURSOS);
+const inscripcionesService = new BaseService(API_CONFIG.ENDPOINTS.INSCRIPCIONES);
 
-
-// Initialize services
-const cursosService = new CursosService();
+// Exportar si usas módulos, o dejar global si usas <script>
+window.profesoresService = profesoresService;
+window.estudiantesService = estudiantesService;
+window.cursosService = cursosService;
+window.inscripcionesService = inscripcionesService;

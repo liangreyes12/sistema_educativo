@@ -277,11 +277,29 @@ class SistemaEducativo {
     }
 
     async editProfesor(id) {
-       
+        const profesores = await profesoresService.getAll();
+        const profesor = profesores.find(p => p.id_profesor === id);
+        if (profesor) {
+            setFormData('profesorForm', profesor);
+            this.editingId = id;
+            this.editingType = 'profesor';
+            this.openModal('profesorModal');
+        }
     }
 
     async deleteProfesor(id) {
-      
+       if (confirmDialog('¿Seguro que deseas eliminar este profesor?')) {
+        try {
+            await profesoresService.delete(id);
+            showToast('Profesor eliminado exitosamente', 'success');
+            this.loadProfesores();
+            if (this.currentSection === 'dashboard') {
+                this.loadDashboard();
+            }
+        } catch (error) {
+            handleApiError(error);
+        }
+    }
     }
 
     async handleProfesorSubmit() {
